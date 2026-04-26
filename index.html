@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>4スイッチ推理練習</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f5f3ee;
+      color: #2d2926;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .app {
+      width: 100%;
+      max-width: 780px;
+      background: #fffaf2;
+      border: 1px solid #e4d8c8;
+      border-radius: 24px;
+      box-shadow: 0 16px 40px rgba(80, 60, 30, 0.14);
+      padding: 28px;
+    }
+    h1 { margin: 0 0 8px; font-size: 28px; }
+    .lead { margin: 0 0 20px; line-height: 1.7; color: #62584c; }
+    .panel {
+      background: #fff;
+      border: 1px solid #eadfce;
+      border-radius: 18px;
+      padding: 20px;
+      margin-top: 16px;
+    }
+    .switches {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin: 18px 0;
+    }
+    .switch-card {
+      border: 1px solid #e6d8c4;
+      border-radius: 16px;
+      padding: 14px;
+      text-align: center;
+      background: #fffdf8;
+    }
+    .label { font-weight: 700; margin-bottom: 10px; }
+    .toggle {
+      display: flex;
+      border-radius: 999px;
+      overflow: hidden;
+      border: 1px solid #cdbb9f;
+    }
+    .toggle button {
+      flex: 1;
+      border: 0;
+      padding: 10px 0;
+      font-size: 16px;
+      cursor: pointer;
+      background: #f3eadc;
+      color: #5a4c3c;
+    }
+    .toggle button.active {
+      background: #7b5e3b;
+      color: white;
+      font-weight: 700;
+    }
+    .actions { display: flex; gap: 12px; flex-wrap: wrap; }
+    button.main, button.sub {
+      border: 0;
+      border-radius: 999px;
+      padding: 12px 18px;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 15px;
+    }
+    button.main { background: #2f6f4e; color: white; }
+    button.sub { background: #e9ddca; color: #3c332a; }
+    .result {
+      margin-top: 14px;
+      padding: 14px;
+      border-radius: 14px;
+      background: #f3f7ef;
+      border: 1px solid #d4e3ca;
+      font-weight: 700;
+      display: none;
+    }
+    .history { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    .history th, .history td {
+      border-bottom: 1px solid #eee3d3;
+      padding: 10px;
+      text-align: center;
+    }
+    .history th { color: #6a5b49; font-size: 13px; }
+    .hint {
+      background: #fff7e4;
+      border: 1px solid #ecd29a;
+      padding: 14px;
+      border-radius: 14px;
+      line-height: 1.7;
+      color: #5a4a30;
+    }
+    .answer {
+      margin-top: 12px;
+      font-weight: 700;
+      color: #7a2f2f;
+      display: none;
+    }
+    @media (max-width: 640px) {
+      .switches { grid-template-columns: repeat(2, 1fr); }
+      .app { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <h1>4スイッチ推理練習</h1>
+    <p class="lead">
+      隠された正解パターンを当てるゲームです。各スイッチは「1」か「2」。送信すると、位置も含めて正解している個数だけ返ってきます。
+    </p>
+
+    <section class="panel">
+      <div class="hint">
+        おすすめ練習法：まず <strong>1111</strong> を試す。次に <strong>2211</strong> など半分だけ変えて、返ってきた個数から推理してみましょう。
+      </div>
+
+      <div class="switches" id="switches"></div>
+
+      <div class="actions">
+        <button class="main" onclick="submitGuess()">この組み合わせで試す</button>
+        <button class="sub" onclick="setPattern([1,1,1,1])">1111にする</button>
+        <button class="sub" onclick="setPattern([2,2,1,1])">2211にする</button>
+        <button class="sub" onclick="newGame()">新しい問題</button>
+        <button class="sub" onclick="showAnswer()">答えを見る</button>
+        <button class="sub" onclick="toggleHistory()" id="historyToggle">試行履歴を隠す</button>
+      </div>
+
+      <div class="result" id="result"></div>
+      <div class="answer" id="answer"></div>
+    </section>
+
+    <section class="panel" id="historyPanel">
+      <h2 style="margin-top:0; font-size:20px;">試行履歴</h2>
+      <table class="history">
+        <thead>
+          <tr>
+            <th>回数</th>
+            <th>A</th><th>B</th><th>C</th><th>D</th>
+            <th>正解数</th>
+          </tr>
+        </thead>
+        <tbody id="history"></tbody>
+      </table>
+    </section>
+  </main>
+
+  <script>
+    let answer = [];
+    let current = [1, 1, 1, 1];
+    let tries = 0;
+    let historyVisible = true;
+
+    function makeAnswer() {
+      answer = Array.from({ length: 4 }, () => Math.random() < 0.5 ? 1 : 2);
+    }
+
+    function renderSwitches() {
+      const root = document.getElementById("switches");
+      root.innerHTML = "";
+      ["A", "B", "C", "D"].forEach((name, i) => {
+        const card = document.createElement("div");
+        card.className = "switch-card";
+        card.innerHTML = `
+          <div class="label">機械${name}</div>
+          <div class="toggle">
+            <button class="${current[i] === 1 ? "active" : ""}" onclick="choose(${i}, 1)">1</button>
+            <button class="${current[i] === 2 ? "active" : ""}" onclick="choose(${i}, 2)">2</button>
+          </div>
+        `;
+        root.appendChild(card);
+      });
+    }
+
+    function choose(index, value) {
+      current[index] = value;
+      renderSwitches();
+    }
+
+    function setPattern(pattern) {
+      current = [...pattern];
+      renderSwitches();
+    }
+
+    function submitGuess() {
+      tries++;
+      const correct = current.filter((v, i) => v === answer[i]).length;
+      const result = document.getElementById("result");
+      result.style.display = "block";
+
+      if (correct === 4) {
+        result.textContent = `正解！ ${tries}回で当たりました。答えは ${answer.join("")} です。`;
+      } else {
+        result.textContent = `正解している個数：${correct}個`;
+      }
+
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${tries}</td>
+        <td>${current[0]}</td>
+        <td>${current[1]}</td>
+        <td>${current[2]}</td>
+        <td>${current[3]}</td>
+        <td><strong>${correct}</strong></td>
+      `;
+      document.getElementById("history").prepend(tr);
+    }
+
+    function showAnswer() {
+      const el = document.getElementById("answer");
+      el.style.display = "block";
+      el.textContent = `答え：${answer.join("")}`;
+    }
+
+    function toggleHistory() {
+      historyVisible = !historyVisible;
+      document.getElementById("historyPanel").style.display = historyVisible ? "block" : "none";
+      document.getElementById("historyToggle").textContent = historyVisible ? "試行履歴を隠す" : "試行履歴を表示";
+    }
+
+    function newGame() {
+      makeAnswer();
+      current = [1, 1, 1, 1];
+      tries = 0;
+      document.getElementById("history").innerHTML = "";
+      document.getElementById("result").style.display = "none";
+      document.getElementById("answer").style.display = "none";
+      renderSwitches();
+    }
+
+    newGame();
+  </script>
+</body>
+</html>
